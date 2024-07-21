@@ -37,7 +37,7 @@ def get_logger(
     return log
 
 def wait_for_extended_operation(
-    operation: ExtendedOperation, verbose_name = "operation", timeout: int = 300
+    operation: ExtendedOperation, verbose_name = "operation", timeout: int = 1800
 ):
     result = operation.result(timeout=timeout)
 
@@ -225,13 +225,14 @@ class GcpFixBoot:
             logger.error(f"Failed to start instance {instance_name}: {str(ex)}")
             raise
 
-    def delete_file(self, disk_name):
+    def delete_file(self, disk_name, file_pattern):
         logger.info(f"Attempting to remove bad CrowdStrike file from {disk_name}")
         files = glob.glob(file_pattern)
 
         if not files:
-            logger.warning(f"No matching CrowdStrike files found in {file_pattern}")
-            return
+            error_message = f"No matching CrowdStrike files found in {file_pattern}. Verify the right drive letter was specified."
+            logger.error(error_message)
+            raise OSError(error_message)
 
         for file_path in files:
             try:
@@ -241,7 +242,7 @@ class GcpFixBoot:
                 logger.error(f"Failed to remove {file_path}: {e}")
                 raise
 
-    def assert_files_deleted(self, disk_name):
+    def assert_files_deleted(self, disk_name, file_pattern):
         logger.info(f"Checking for removal of bad files from {disk_name}")
         files = glob.glob(file_pattern)
 
@@ -272,7 +273,8 @@ class GcpFixBoot:
             outfile.write('\n'.join(original_disks))
             outfile.write('\n')
 
-def main(credentials, project, region, zone, recovery_instance_name, vms, leave_powered_off):
+def main(credentials, project, region, zone, recovery_instance_name, vms, leave_powered_off, drive_letter):
+    file_pattern = f"{drive_letter}:/Windows/System32/drivers/CrowdStrike/C-00000291*.sys"
     gcp = GcpFixBoot(credentials, project, region)
     suffix = ''.join(random.choices(string.digits, k=5))
     logger.info(f"Beginning recovery attempt. Created resources will be created with the suffix:{suffix}")
@@ -319,8 +321,8 @@ def main(credentials, project, region, zone, recovery_instance_name, vms, leave_
                 # Fix Snapshots
                 try:
                     gcp.attach_disk(zone, recovery_instance_name, value["new_disk"], value["boot_disk"], 1)
-                    gcp.delete_file(value["new_disk_name"])
-                    gcp.assert_files_deleted(value["new_disk_name"])
+                    gcp.delete_file(value["new_disk_name"], file_pattern)
+                    gcp.assert_files_deleted(value["new_disk_name"], file_pattern)
                 finally:
                     try:
                         gcp.detach_disk(zone, recovery_instance_name, device_name)
@@ -353,7 +355,6 @@ def main(credentials, project, region, zone, recovery_instance_name, vms, leave_
         print(f"Full output logged to output.log")
 
 logger = get_logger()
-file_pattern = "D:/Windows/System32/drivers/CrowdStrike/C-00000291*.sys"
 
 if __name__=="__main__":
     import argparse
@@ -364,12 +365,14 @@ if __name__=="__main__":
     parser.add_argument('--project', required=True, help='The GCP project to operate in')
     parser.add_argument('--region', required=True, help='The GCP region to operate in.')
     parser.add_argument('--zone', required=True, help='The GCP zone to operate in.')
-    parser.add_argument('--instance_name', help='The name of the instance to recover.', nargs="*")
+    parser.add_argument('--instance_names', nargs="*", help='The names of the instances to recover separated by a space')
     parser.add_argument('--recovery_instance_name', required=True,
                         help='The name of the instance that will act as the recovery machine.')
     parser.add_argument('--instance_list_csv', help='The path to a csv file with a list of impact instaces')
-    parser.add_argument('--leave_powered_off', action='store_true', help='''Leave the instances in a powered off state. By default,
+    parser.add_argument('--leave_powered_off', action='store_true', help='''Leave the instances in a powered off state.
                         By default, instances will be powered on after the new disk is attached.''')
+    parser.add_argument('--drive_letter', help='''The drive letter to search for problematic files on.
+                        The default drive will be "D".''', choices=["D", "E", "F", "G"], default="D")
     parsed_args = parser.parse_args()
 
     instances_list = []
@@ -378,7 +381,7 @@ if __name__=="__main__":
             reader = csv.reader(f)
             for row in reader:
                 instances_list += row
-    if parsed_args.instance_name:
-        instances_list += parsed_args.instance_name
+    if parsed_args.instance_names:
+        instances_list += parsed_args.instance_names
 
-    main(parsed_args.credentials, parsed_args.project, parsed_args.region, parsed_args.zone, parsed_args.recovery_instance_name, instances_list, parsed_args.leave_powered_off)
+    main(parsed_args.credentials, parsed_args.project, parsed_args.region, parsed_args.zone, parsed_args.recovery_instance_name, instances_list, parsed_args.leave_powered_off, parsed_args.drive_letter)

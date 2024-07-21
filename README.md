@@ -23,15 +23,24 @@ This process allows the sensor to initialize without loading the problematic fil
 - This script will not work with customer-managed encryption keys (CMEK).
 - Snapshots and disks are not deleted in this process. They should be cleaned up after recovery has been verified.
 - The name of the attached disk will change during the process, which may impact any external automation that looks at resource names, such as Terraform.
+- Ensure any labels and tags are still applied to the disk after recovery.
+- A recovery instance is needed for each zone that contains impacted instances.
 
 ## Prerequisites
 
-- Provision a GCP instance to act as the recovery machine.
-  - This machine must be in the same region and zone as the impacted instances.
-- Copy your GCP JSON credentials file to the recovery machine.
-- Install Python on the recovery machine.
+### Recovery Machine
 
-## GCP Credentials
+> [!WARNING]
+> A recovery machine must be created in the project, region, and zone that impacted instances are in.
+
+The following are the requirements for the recovery machine:
+
+- Must be a Windows machine.
+  - This was tested with `windows-server-2019-dc-v20240711`, but any current Windows instance should work.
+- This instance must have a **single drive** attached.
+- Must be able to download/install files from the internet.
+
+### GCP Credentials
 
 1. Go to the IAM & Admin page.
 2. Create a service account with the following roles:
@@ -42,21 +51,15 @@ This process allows the sensor to initialize without loading the problematic fil
 4. Save this file locally in case you need it again.
 5. Copy it to the recovery machine.
 
-## Recovery Machine
+### Python Installation
 
-> [!WARNING]
-> A recovery machine must be created in the project, region, and zone that impacted instances are in.
+A modern version of Python must be installed.
 
-The following are the requirements for the recovery machine:
+> This script was tested with 3.12.4.
 
-- Must be a Windows machine.
-  - We tested with `windows-server-2019-dc-v20240711`, but any current Windows instance should work.
-- This instance must have a **single drive** attached.
-- Must be able to download/install files from the internet.
+#### Example Python Installation
 
-## Example Python Installation
-
-Run the follwing in PowerShell as administrator:
+Run the following in PowerShell as administrator:
 
 ```PowerShell
 $file = "https://www.python.org/ftp/python/3.12.4/python-3.12.4-amd64.exe"
@@ -72,7 +75,27 @@ python -m venv env
 pip install -U google-auth google-cloud-compute
 ```
 
-## Running the remediation
+## Usage
+
+### Options
+
+```
+  -h, --help            show this help message and exit
+  --credentials CREDENTIALS
+                        The path to the json file holding the GCP credentials.
+  --project PROJECT     The GCP project to operate in
+  --region REGION       The GCP region to operate in.
+  --zone ZONE           The GCP zone to operate in.
+  --instance_names [INSTANCE_NAMES ...]
+                        The names of the instances to recover separated by a space
+  --recovery_instance_name RECOVERY_INSTANCE_NAME
+                        The name of the instance that will act as the recovery machine.
+  --instance_list_csv INSTANCE_LIST_CSV
+                        The path to a csv file with a list of impact instaces
+  --leave_powered_off   Leave the instances in a powered off state. By default, instances will be powered on after the new disk is attached.
+  --drive_letter {D,E,F,G}
+                        The drive letter to search for problematic files on. The default drive will be "D".
+```
 
 ### Download the script
 
@@ -83,7 +106,9 @@ $file = "https://raw.githubusercontent.com/CrowdStrike/gcp-cf-remediation/main/g
 Invoke-WebRequest -Uri $file -OutFile gcp_cf_remediation.py
 ```
 
-### Running the script with a list of impacted instances
+### Examples
+
+#### Running the script with a list of impacted instances
 
 Impacted instances can be provided as a list from the command line
 
@@ -93,10 +118,10 @@ $PROJECT = "Your Project"
 $REGION = "Your Region"
 $ZONE = "Your Zone"
 $RECOVERY_INSTANCE = "Your Recovery Instance"
-python gcp_cf_remediation.py --credentials $GCP_CREDENTIALS --project $PROJECT --region $REGION --zone $ZONE --recovery_instance_name $RECOVERY_INSTANCE --instance_name impacted-instance-1 impacted-instance-2
+python gcp_cf_remediation.py --credentials $GCP_CREDENTIALS --project $PROJECT --region $REGION --zone $ZONE --recovery_instance_name $RECOVERY_INSTANCE --instance_names impacted-instance-1 impacted-instance-2
 ```
 
-### Running the script with a list of impacted instances from a CSV file
+#### Running the script with a list of impacted instances from a CSV file
 
 Alternatively a CSV file can also be used for the list of instances to run recovery on
 
@@ -110,7 +135,7 @@ Alternatively a CSV file can also be used for the list of instances to run recov
 python gcp_cf_remediation.py  --credentials $GCP_CREDENTIALS --project $PROJECT --region $REGION --zone $ZONE --recovery_instance_name $RECOVERY_INSTANCE --instance_list_csv "SomeFile.csv"
 ```
 
-### Managing state of the instances after recovery
+#### Managing state of the instances after recovery
 
 By default the instances will be powered on after they are recovered, if you do not want them to be powered on, use the `--leave_powered_off` flag
 
@@ -121,6 +146,16 @@ By default the instances will be powered on after they are recovered, if you do 
 
 ```PowerShell
 python gcp_cf_remediation.py  --credentials $GCP_CREDENTIALS --project $PROJECT --region $REGION --zone $ZONE --recovery_instance_name $RECOVERY_INSTANCE --instance_list_csv "SomeFile.csv" --leave_powered_off
+```
+
+#### Running the script to target a different drive letter
+
+By default the `D` drive will be searched for impacted files.
+
+This can be changed with the `--drive_letter` argument.
+
+```PowerShell
+python gcp_cf_remediation.py  --credentials $GCP_CREDENTIALS --project $PROJECT --region $REGION --zone $ZONE --recovery_instance_name $RECOVERY_INSTANCE --instance_list_csv "SomeFile.csv" --drive_letter "E"
 ```
 
 ### Output
