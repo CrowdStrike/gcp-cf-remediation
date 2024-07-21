@@ -31,10 +31,21 @@ This will allow sensor to initialize without loading the bad files.
 * Copy your GCP json credentials file to the recovery machine
 * Install python on the recovery machine
 
+## GCP Credentials
+
+* GO to the IAM & Admin page
+* Create a service account with the following roles
+  * Compute Admin
+  * Serice Account User
+* Click on Manage Keys
+  * Create New Json Key
+* Save this file locally in case you need it again
+* Copy it to the recovery machine
+
 ## Recovery Machine
 
 * A recovery machine must be created in the project, region, and zone that impacted instances are in.
-  * windows-server-2019-dc-v20240711 was used for testing, but any current windows instance should work
+  * `windows-server-2019-dc-v20240711` was used for testing, but any current windows instance should work
 
 ## Example Python Installation
 
@@ -49,7 +60,7 @@ Close PowerShell and reopen it as administrator
 ```PowerShell
 python -m venv env
 .\env\Scripts\Activate.ps1
-pip install -U requirements.txt
+pip install -U google-auth google-cloud-compute
 ```
 
 ## Running the remediation
@@ -60,7 +71,7 @@ $PROJECT = "Your Project"
 $REGION = "Your Region"
 $ZONE = "Your Zone"
 $RECOVERY_INSTANCE = "Your Recovery Instance"
-python gcp_cf_remediation.py --credentials $GCP_CREDENTIALS --project $PROJECT --region $REGION --zone $ZONE --recovery_instance_name $RECOVERY_INSTANCE --instance_name recovery-instance-1721447783 recovery-instance-1721446749 recovery-instance-1721446563 recovery-instance-1721445550
+python gcp_cf_remediation.py --credentials $GCP_CREDENTIALS --project $PROJECT --region $REGION --zone $ZONE --recovery_instance_name $RECOVERY_INSTANCE --instance_name impacted-instance-1 impacted-instance-2
 ```
 
 A CSV file can also be used for the list of instance to run recover
