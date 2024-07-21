@@ -283,6 +283,7 @@ def main(credentials, project, region, zone, recovery_instance_name, vms, leave_
 
     for instance_name in vms:
         instance = gcp.instance_client.get(project=project, zone=zone, instance=instance_name)
+        gcp.stop_instance(zone, instance_name)
 
         boot_disk = next(disk for disk in instance.disks if disk.boot)
         disk_source = boot_disk.source.split("/")[-1]
@@ -321,18 +322,23 @@ def main(credentials, project, region, zone, recovery_instance_name, vms, leave_
                     gcp.delete_file(value["new_disk_name"])
                     gcp.assert_files_deleted(value["new_disk_name"])
                 finally:
-                    gcp.detach_disk(zone, recovery_instance_name, device_name)
+                    try:
+                        gcp.detach_disk(zone, recovery_instance_name, device_name)
+                    except Exception as ex:
+                        logger.error(f"Fatal error when detaching {device_name} from {recovery_instance_name}: {str(ex)}\nUnable to proceed.")
+                        failed_fixes[instance_name] = value
+                        break
 
                 # Reattach disk to instance
-                gcp.stop_instance(zone, instance_name)
                 gcp.detach_disk(zone, instance_name, device_name)
                 gcp.attach_disk(zone, instance_name, value["new_disk"], value["boot_disk"], 0)
                 if not leave_powered_off:
-                    gcp.start_instance(zone, instance.name)
+                    gcp.start_instance(zone, instance_name)
 
             except Exception as ex:
                 logger.error(f"Failed to fix instance {instance_name}: {str(ex)}")
                 failed_fixes[instance_name] = value
+
         for instance_name, value in failed_fixes.items():
             del instances[instance_name]
 

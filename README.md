@@ -46,6 +46,7 @@ This will allow sensor to initialize without loading the bad files.
 
 * A recovery machine must be created in the project, region, and zone that impacted instances are in.
   * `windows-server-2019-dc-v20240711` was used for testing, but any current windows instance should work
+  * This instance must have a single drive on it
 
 ## Example Python Installation
 
@@ -65,6 +66,8 @@ pip install -U google-auth google-cloud-compute
 
 ## Running the remediation
 
+Impacted instances can be provided as a list from the command line
+
 ```PowerShell
 $GCP_CREDENTIALS = "Path to your credential file"
 $PROJECT = "Your Project"
@@ -74,16 +77,21 @@ $RECOVERY_INSTANCE = "Your Recovery Instance"
 python gcp_cf_remediation.py --credentials $GCP_CREDENTIALS --project $PROJECT --region $REGION --zone $ZONE --recovery_instance_name $RECOVERY_INSTANCE --instance_name impacted-instance-1 impacted-instance-2
 ```
 
-A CSV file can also be used for the list of instance to run recover
+Or a CSV file can also be used for the list of instances to run recovery on
+
+SomeFile.csv
+```
+impacted-instance-1,impacted-instance-2
+```
 
 ```PowerShell
-python gcp_cf_remediation.py  --credentials $GCP_CREDENTIALS --project $PROJECT --region $REGION --zone $ZONE --recovery_instance_name $RECOVERY_INSTANCE --instance_list_csv "SomeCsvFile"
+python gcp_cf_remediation.py  --credentials $GCP_CREDENTIALS --project $PROJECT --region $REGION --zone $ZONE --recovery_instance_name $RECOVERY_INSTANCE --instance_list_csv "SomeFile.csv"
 ```
 
 By default the instances will be powered on after they are recovered, if you do not want them to be powered on, use the --leave_powered_off flag
 
 ```PowerShell
-python gcp_cf_remediation.py  --credentials $GCP_CREDENTIALS --project $PROJECT --region $REGION --zone $ZONE --recovery_instance_name $RECOVERY_INSTANCE --instance_list_csv "SomeCsvFile" --leave_powered_off
+python gcp_cf_remediation.py  --credentials $GCP_CREDENTIALS --project $PROJECT --region $REGION --zone $ZONE --recovery_instance_name $RECOVERY_INSTANCE --instance_list_csv "SomeFile.csv" --leave_powered_off
 ```
 
 ### Output
