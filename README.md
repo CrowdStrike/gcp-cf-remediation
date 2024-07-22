@@ -39,6 +39,8 @@ The following are the requirements for the recovery machine:
   - This was tested with `windows-server-2019-dc-v20240711`, but any current Windows instance should work.
 - This instance must have a **single drive** attached.
 - Must be able to download/install files from the internet.
+- Must be created from a different image than the impacted instances that will be recovered.
+  - Windows will not assign a drive letter to disks with the same signature.
 
 ### GCP Credentials
 
